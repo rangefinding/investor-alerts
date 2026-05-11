@@ -1,0 +1,43 @@
+name: Investor Filing Alert
+
+on:
+  schedule:
+    # Runs twice daily Mon–Fri:
+    #   9:30 AM ET  = 13:30 UTC  (catches morning filings)
+    #   6:00 PM ET  = 22:00 UTC  (catches after-hours / end-of-day filings)
+    - cron: "30 13 * * 1-5"
+    - cron: "0 22 * * 1-5"
+  workflow_dispatch:  # allows manual trigger from GitHub UI
+
+# Needed to commit the state file back to the repo
+permissions:
+  contents: write
+
+jobs:
+  check-investors:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run investor filing check
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: python check_investors.py
+
+      - name: Commit updated state file
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add seen_filings.json
+          git diff --staged --quiet || git commit -m "chore: update seen filings state [skip ci]"
+          git push
